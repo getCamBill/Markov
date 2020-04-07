@@ -1,16 +1,12 @@
 import re
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats
 
-
-
-def est_transition(Matrice: list):
-    assert Matrice.ndim == 2, "N'est pas une matrice 2D"
-    assert Matrice.shape[0] == Matrice.shape[1], "La matrice n'est pas carré"
-    np.testing.assert_allclose(np.sum(Matrice, 1), [1] * Matrice.shape[0], err_msg='La somme des probas ne fait pas 1')
-
-
+"""
+(a) Écrire une fonction simu, prenant pour paramètres Q, X0 et un
+entier n, et renvoyant une trajectoire de la chaîne de Markov
+jusqu'au temps n.
+"""
 def simu(Q, Xo, n):
     """
     fonction simu renvoyant une trajectoire de la chaîne de Markov
@@ -21,108 +17,99 @@ def simu(Q, Xo, n):
     :param n:temps n
     :return: trajectoire de la chaîne de Markov
     """
-
-    trajectoire = []
-
     # Condition initiales:
     x0 = int(np.random.random() < Xo)
-    # x0 = Xo
+    trajectoire = []
     trajectoire.append(x0)
-
-    # Chaque pas de temps
-    for t in range(n - 1):
-        x = trajectoire[-1]
+    for t in range(1, n + 1):
+        _1 = Q[x0-1,0]
+        _2 = _1 + Q[x0 - 1, 1]
+        _3 = _2 + Q[x0 - 1, 2]
         rd = np.random.random()
-        if x == 0:
-            if rd < P[0, 1]:
-                new_x = 1
-            else:
-                new_x = 0
+        if rd < _1:
+            x0 = 1
+        elif rd < _2:
+            x0 = 2
+        elif rd < _3:
+            x0 = 3
         else:
-            new_x = int(rd < P[1, 1])
-        trajectoire.append(new_x)
+            x0 = 4
+        trajectoire.append(x0)
+
     return trajectoire
 
+def trouver_mesure_invariante(Pi):
+    """
+    Permet de retrouver les mesures invariantes
+    :param Pi: matrice stochastique
+    :return:
+    """
+    pi1 = Pi.transpose() # il faut transposer la matrice de départ
+    propre = np.linalg.eig(pi1)[1] # le vecteur propre
+    return abs(propre[:, 0]/sum(abs(propre[:, 0]))).transpose()
 
-# trace_mc_trajectoire(traj, ['Fermé','Ouvert'])
-
-
-def trouver_mesure_invariante(P):
-    """Retourne la mesure invariante d'une matrice stochastique P"""
-
-    # Tester si la matrice est stochastique.
-    est_transition(P)
-
-    # Trouver le vecteur propre à gauche
-    # /!\ linalg.eig renvoie la valeur propre à droite,
-    # il faut transposer la matrice de départ pour avoir
-    # celle à gauche. Exercice: le prouver.
-    valp, vecp = np.linalg.eig(P.transpose())
-
-    # Trouver la valeur propre dominante
-    # On sait qu'elle existe grâce au thèorème de Perron-Frobenius.
-    pos_valp_dom = np.argmax(valp)
-    vecp_dom = vecp[:, pos_valp_dom]
-
-    # Vérifier que la valeur propre dominante est 1.
-    assert abs(np.max(valp) - 1) < 1e-10
-
-    # Trouver le vecteur propre dominant
-    # et le remettre à l'échelle pour que la somme
-    # de ses éléments soit 1.
-    vecp_dom = vecp[:, pos_valp_dom] / np.sum(vecp_dom)
-
-    return vecp_dom
-P = np.array([[0, 2/7, 2/7, 3/7],
-              [3/17, 9/17, 5/17, 0],
-              [1/4, 1/4, 1/4, 1/4],
-              [1/3, 1/3, 1/3, 0]])
-print(trouver_mesure_invariante(P))
-
-def finale(Q, Xo, n):
-    liste = []
-    for i in range(0, n):
-        liste[i] = simu(Q, Xo, n)[n]
-    return liste
-
-P = np.array([[0, 2/7, 2/7, 3/7],
-              [3/17, 9/17, 5/17, 0],
-              [1/4, 1/4, 1/4, 1/4],
-              [1/3, 1/3, 1/3, 0]])
-traj = simu(P, 0.9, 10)
-print(traj)
-
-f = finale(P, 0.9, 10)
-print(f)
-
-# ---------------------------------------
 """
 (d) 
 Écrire une fonction permettant de calculer le nombre moyen de fois,
 noté Mn, que la chaîne réalise le motif 123 lors d'une trajectoire
 en fonction de n.
 """
+def Mn(Q, Xo, n, N):
+    somme = []
 
-# l = [1, 2, 3, 2, 3, 1, 1, 2, 3]
-# matches = re.findall('123', "".join(map(str, [1, 2, 3, 2, 3, 1, 1, 2, 3])), re.DOTALL)
-# print(matches, len(matches))
+    def motif(traj: list) -> int:
+        nb = len(re.findall('123', "".join(map(str, traj)), re.DOTALL))
+        return nb
+
+    for i in range(1, N):
+        somme.append(motif(simu(Q, Xo, n)))
+    return sum(somme)/n, somme
+
+def show(Mn: list, idnum: int) -> plt:
+    if idnum != 1:
+        chaine_1 = "Graphe de la suite Mn"
+        chaine_2 = "Nb apparition du motif '123'"
+        chaine_3 = "n simulation"
+    else:
+        chaine_1 = "Graphe de la trajectoire de Markov"
+        chaine_2 = "Etats"
+        chaine_3 = "temps n"
+
+    taille = len(Mn)
+    copernic = [ i for i in range(taille)]
+    plt.scatter(copernic, Mn, color='firebrick')
+    plt.plot(copernic, Mn, color='darkslategrey')
+    plt.title(chaine_1)
+    plt.xlabel(chaine_3)
+    plt.ylabel(chaine_2)
+    plt.show()
+
+# --------------------------------------
+# X_0 = np.random.randint(1, 15)
+X_0 = 10
+
+# (a)
+P = np.array([[0, 2/7, 2/7, 3/7],
+              [3/17, 9/17, 5/17, 0],
+              [1/4, 1/4, 1/4, 1/4],
+              [1/3, 1/3, 1/3, 0]])
+Riazan = simu(P, X_0, 10) # ville de naissance de Andreï Andreïevitch Markov, un mec connu
+print("Trajectoire : ",Riazan)
+show(Riazan, 1)
+# (d)
+print("Mesure invarainte : ",trouver_mesure_invariante(P))
+blobe = Mn(P, X_0, 10, 100)
+print("Pour n = 100 :", blobe[0])
+show(blobe[1], 2)
+blobe = Mn(P, X_0, 10, 1000)
+print("Pour n = 1 000 :", blobe[0])
+show(blobe[1], 2)
+blobe = Mn(P, X_0, 10, 10000)
+print("Pour n = 10 000 :", blobe[0])
+# show(blobe[1], 2)
+blobe = Mn(P, X_0, 10, 100000)
+print("Pour n = 100 000 :", blobe[0])
+# show(blobe[1], 2)
 
 
 # ---------------------------------------
-
-def trace_mc_trajectoire(traj, noms_etats=None, ax=None):
-    """Trace la trajectoire d'une chaîne de markov.
-
-    Args:
-        traj (np.array): traj[i] est l'état de la chaîne à l'instant i.
-        noms_etats (iterable): nom associé à chaque état
-        ax (matplotlib.axis): axis on which the trajectory is drawn
-    """
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 2))
-    ticks = np.arange(traj.max() + 1)
-    if noms_etats is None:
-        noms_etats = ticks
-    ax.plot(np.arange(len(traj)), traj, color='k')
-    ax.set(xlabel='Temps', ylabel='État', yticks=ticks, yticklabels=noms_etats)
-    ax.scatter(np.arange(len(traj)), traj)
